@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Emergency Response — Location Command</title>
+
+<!-- Leaflet Real Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+
+<style>
+  :root {
+    --bg:       #070b12;
+    --panel:    #0d1421;
+    --border:   #1a2a40;
+    --accent:   #00e5ff;
+    --danger:   #ff2d55;
+    --warn:     #ff9f0a;
+    --ok:       #30d158;
+    --text:     #c8d8e8;
+    --dim:      #4a6080;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Exo 2', sans-serif; overflow: hidden; }
+
+  /* ── HEADER ── */
+  header {
+    height: 60px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: #070b12; position: relative; z-index: 1000;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--danger), #ff6b35);
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    animation: pulse-icon 2s infinite;
+  }
+  @keyframes pulse-icon {
+    0%,100% { box-shadow: 0 0 10px rgba(255,45,85,.5); }
+    50%      { box-shadow: 0 0 24px rgba(255,45,85,.9); }
+  }
+  .logo-text { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:17px;
+    letter-spacing:2px; color:#fff; text-transform:uppercase; }
+  .logo-sub  { font-family:'Share Tech Mono',monospace; font-size:9px;
+    color:var(--accent); letter-spacing:3px; }
+  .header-center { display:flex; gap:12px; }
+  .stat-pill { padding:5px 14px; border:1px solid var(--border); border-radius:20px;
+    font-family:'Share Tech Mono',monospace; font-size:11px; background:rgba(255,255,255,.03); }
+  .stat-pill b { color:var(--accent); margin-right:5px; }
+  .live-badge { display:flex; align-items:center; gap:6px;
+    font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--danger); }
+  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--danger);
+    animation:blink .9s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr 280px;
+    height: calc(100vh - 60px);
+  }
+
+  /* ── SIDE PANELS ── */
+  .panel {
+    background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; z-index: 500;
+  }
+  .panel.right { border-right: none; border-left: 1px solid var(--border); }
+  .panel-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 12px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
+  }
+  .panel-header::before { content: '// '; color: var(--dim); font-family: 'Share Tech Mono', monospace; }
+  .panel-body { flex: 1; overflow-y: auto; padding: 14px; }
+  .panel-body::-webkit-scrollbar { width: 3px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* ── MAP CONTAINER ── */
+  .map-wrap { position: relative; width: 100%; height: 100%; }
+  #map { width: 100%; height: 100%; z-index: 1; }
+
+  /* ── MAP LAYER TOGGLE ── */
+  .map-toggle {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .map-toggle button {
+    padding: 7px 14px; border: 1px solid var(--border); border-radius: 6px;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    cursor: pointer; background: rgba(7,11,18,.92); color: var(--text); transition: all .2s;
+  }
+  .map-toggle button.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: bold; }
+  .map-toggle button:hover:not(.active) { background: rgba(0,229,255,.12); color: var(--accent); }
+
+  /* Leaflet popup dark theme */
+  .leaflet-popup-content-wrapper {
+    background: #0d1421 !important; color: #c8d8e8 !important;
+    border: 1px solid #1a2a40 !important; border-radius: 10px !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,.7) !important;
+    font-family: 'Exo 2', sans-serif !important;
+  }
+  .leaflet-popup-tip { background: #0d1421 !important; }
+  .leaflet-popup-content { margin: 14px 18px !important; font-size: 12px; }
+  .popup-title { font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: 16px; margin-bottom: 8px; color: #fff; }
+  .popup-row { display: flex; justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    color: #4a6080; margin-top: 4px; gap: 20px; }
+  .popup-row span { color: #c8d8e8; }
+
+  /* ── AI RISK GAUGE ── */
+  .risk-gauge {
+    background: rgba(255,255,255,.03); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 14px;
+  }
+  .gauge-title { font-family:'Share Tech Mono',monospace; font-size:9px;
+    color:var(--dim); letter-spacing:2px; margin-bottom:10px; }
+  .gauge-bar-wrap { background:rgba(255,255,255,.05); border-radius:4px;
+    height:7px; overflow:hidden; margin-bottom:8px; }
+  .gauge-bar { height:100%; border-radius:4px; transition:width .8s ease, background .5s; width:0%; }
+  .gauge-val { font-family:'Rajdhani',sans-serif; font-size:30px; font-weight:700; line-height:1; color:var(--dim); }
+  .gauge-level { font-family:'Share Tech Mono',monospace; font-size:10px;
+    letter-spacing:2px; margin-top:2px; color:var(--dim); }
+
+  /* ── FORM ── */
+  .field { margin-bottom:12px; }
+  label { display:block; font-size:10px; color:var(--dim);
+    font-family:'Share Tech Mono',monospace; margin-bottom:4px; letter-spacing:1px; }
+  input, select, textarea {
+    width:100%; background:rgba(255,255,255,.04);
+    border:1px solid var(--border); border-radius:6px;
+    color:var(--text); font-family:'Share Tech Mono',monospace; font-size:11px;
+    padding:8px 10px; outline:none; transition:border .2s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,229,255,.12);
+  }
+  select option { background:#0d1421; }
+  textarea { resize:none; height:55px; }
+  .coord-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    width:100%; padding:10px; border:none; border-radius:8px;
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:13px;
+    letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all .2s;
+  }
+  .btn-primary {
+    background:linear-gradient(135deg,var(--danger),#c0392b);
+    color:#fff; box-shadow:0 4px 16px rgba(255,45,85,.4);
+  }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(255,45,85,.6); }
+  .btn-secondary {
+    background:transparent; color:var(--accent);
+    border:1px solid var(--accent); margin-top:7px;
+  }
+  .btn-secondary:hover { background:rgba(0,229,255,.08); }
+  .btn-locate {
+    width:100%; margin-top:7px; padding:8px; border-radius:6px;
+    background:rgba(0,229,255,.1); color:var(--accent); border:1px solid rgba(0,229,255,.3);
+    font-family:'Share Tech Mono',monospace; font-size:11px; cursor:pointer; transition:all .2s;
+  }
+  .btn-locate:hover { background:rgba(0,229,255,.2); }
+
+  /* ── RESPONDER CARDS ── */
+  .responder-card {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,.03); border:1px solid var(--border);
+    border-radius:10px; padding:10px; margin-bottom:8px;
+  }
+  .resp-icon { width:34px; height:34px; border-radius:8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .resp-icon.Police    { background:rgba(0,112,255,.2); border:1px solid rgba(0,112,255,.3); }
+  .resp-icon.Ambulance { background:rgba(48,209,88,.2);  border:1px solid rgba(48,209,88,.3); }
+  .resp-icon.Fire      { background:rgba(255,69,0,.2);   border:1px solid rgba(255,69,0,.3); }
+  .resp-name { font-family:'Rajdhani',sans-serif; font-weight:600; font-size:14px; }
+  .resp-type { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--dim); }
+  .resp-status { margin-left:auto; padding:2px 7px; border-radius:4px;
+    font-family:'Share Tech Mono',monospace; font-size:9px; white-space:nowrap; }
+  .status-available { background:rgba(48,209,88,.15); color:var(--ok); border:1px solid rgba(48,209,88,.3); }
+  .status-on_call   { background:rgba(255,159,10,.15); color:var(--warn); border:1px solid rgba(255,159,10,.3); }
+
+  /* ── INCIDENT CARDS ── */
+  .incident-card {
+    background:rgba(255,255,255,.03); border:1px solid var(--border);
+    border-radius:10px; padding:12px; margin-bottom:8px;
+    border-left:3px solid var(--danger); cursor:pointer;
+    animation:slide-in .3s ease; transition: border-color .2s;
+  }
+  .incident-card:hover { border-color: var(--accent); }
+  @keyframes slide-in { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+  .inc-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+  .inc-id   { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--accent); }
+  .inc-type { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:13px; text-transform:uppercase; }
+  .risk-badge { padding:2px 7px; border-radius:4px; font-family:'Share Tech Mono',monospace; font-size:9px; }
+  .badge-critical { background:rgba(255,45,85,.2); color:var(--danger); border:1px solid rgba(255,45,85,.3); }
+  .badge-high     { background:rgba(255,159,10,.2); color:var(--warn);  border:1px solid rgba(255,159,10,.3); }
+  .badge-moderate { background:rgba(255,214,10,.2); color:#ffd60a;      border:1px solid rgba(255,214,10,.3); }
+  .badge-low      { background:rgba(48,209,88,.2);  color:var(--ok);    border:1px solid rgba(48,209,88,.3); }
+  .inc-coords  { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--dim); margin-top:4px; }
+  .inc-desc    { font-size:11px; color:var(--text); margin-top:5px; }
+  .inc-assigned{ font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--ok); margin-top:6px; }
+
+  .section-div {
+    font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--dim);
+    letter-spacing:2px; text-transform:uppercase; margin:14px 0 8px;
+    border-top:1px solid var(--border); padding-top:12px;
+  }
+
+  /* ── TOAST ── */
+  #toast {
+    position:fixed; bottom:20px; right:20px; z-index:9998;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:14px 18px; max-width:300px;
+    transform:translateY(80px); opacity:0;
+    transition:all .4s cubic-bezier(.34,1.56,.64,1);
+    box-shadow:0 20px 50px rgba(0,0,0,.7);
+  }
+  #toast.show { transform:none; opacity:1; }
+  .toast-title { font-family:'Rajdhani',sans-serif; font-weight:700;
+    font-size:13px; letter-spacing:1px; margin-bottom:5px; }
+  .toast-msg   { font-family:'Share Tech Mono',monospace; font-size:10px;
+    color:var(--dim); line-height:1.5; }
+  .toast-extra { margin-top:8px; padding-top:8px; border-top:1px solid var(--border);
+    font-family:'Share Tech Mono',monospace; font-size:11px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚨</div>
+    <div>
+      <div class="logo-text">Emergency Response</div>
+      <div class="logo-sub">Location Command Center</div>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="stat-pill"><b id="active-count">0</b> Active Incidents</div>
+    <div class="stat-pill"><b id="resp-count">4</b> Responders</div>
+  </div>
+  <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+</header>
+
+<div class="layout">
+
+  <!-- ── LEFT PANEL: REPORT ── -->
+  <div class="panel">
+    <div class="panel-header">Report Incident</div>
+    <div class="panel-body">
+
+      <div class="risk-gauge">
+        <div class="gauge-title">AI RISK ASSESSMENT</div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" id="gauge-bar"></div></div>
+        <div class="gauge-val" id="gauge-val">--</div>
+        <div class="gauge-level" id="gauge-level">SELECT INCIDENT TYPE</div>
+      </div>
+
+      <div class="field">
+        <label>INCIDENT TYPE</label>
+        <select id="inc-type" onchange="previewRisk()">
+          <option value="">— Select —</option>
+          <option value="fire">🔥 Fire</option>
+          <option value="medical">🏥 Medical Emergency</option>
+          <option value="crime">🚔 Crime / Security</option>
+          <option value="accident">🚗 Road Accident</option>
+          <option value="flood">🌊 Flood / Disaster</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>DESCRIPTION</label>
+        <textarea id="inc-desc" placeholder="Briefly describe the emergency..."></textarea>
+      </div>
+
+      <div class="field">
+        <label>COORDINATES — click map to pin location</label>
+        <div class="coord-row">
+          <input type="number" id="lat" placeholder="Latitude"  step="0.0001" value="-29.8587"/>
+          <input type="number" id="lng" placeholder="Longitude" step="0.0001" value="31.0218"/>
+        </div>
+        <button class="btn-locate" onclick="getMyLocation()">📍 Use My GPS Location</button>
+      </div>
+
+      <div class="field">
+        <label>AREA DENSITY</label>
+        <select id="density">
+          <option value="low">Low Density</option>
+          <option value="medium" selected>Medium Density</option>
+          <option value="high">High Density</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="submitIncident()">🚨 Report Emergency</button>
+      <button class="btn btn-secondary" onclick="getAIPrediction()">🤖 AI Risk Analysis</button>
+
+      <div class="section-div">Active Incidents</div>
+      <div id="inc-list"><p style="color:var(--dim);font-size:11px">No active incidents.</p></div>
+    </div>
+  </div>
+
+  <!-- ── CENTER: REAL MAP ── -->
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-toggle">
+      <button id="btn-streets"    class="active" onclick="setLayer('streets')">🗺 Streets</button>
+      <button id="btn-satellite"  onclick="setLayer('satellite')">🛰 Satellite</button>
+      <button id="btn-topo"       onclick="setLayer('topo')">⛰ Topo</button>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL: RESPONDERS ── -->
+  <div class="panel right">
+    <div class="panel-header">Active Units</div>
+    <div class="panel-body" id="responder-list">
+      <p style="color:var(--dim);font-size:11px">Loading...</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <div class="toast-title" id="toast-title"></div>
+  <div class="toast-msg"   id="toast-msg"></div>
+  <div class="toast-extra" id="toast-extra" style="display:none"></div>
+</div>
+
+<script>
+// ─── MAP SETUP ─────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([-29.8587, 31.0218], 14);
+
+const tileLayers = {
+  streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19
+  }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri World Imagery', maxZoom: 19
+  }),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenTopoMap', maxZoom: 17
+  })
+};
+tileLayers.streets.addTo(map);
+let currentLayer = 'streets';
+
+function setLayer(name) {
+  map.removeLayer(tileLayers[currentLayer]);
+  tileLayers[name].addTo(map);
+  currentLayer = name;
+  document.querySelectorAll('.map-toggle button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + name).classList.add('active');
+}
+
+// ─── CUSTOM ICONS ──────────────────────────────────────────────────────────
+function makeIcon(emoji, bg) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:36px;height:36px;background:${bg};border:2px solid rgba(255,255,255,.8);
+      border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;
+      justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.5);font-size:15px;">
+      <span style="transform:rotate(45deg)">${emoji}</span></div>`,
+    iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-38]
+  });
+}
+const ICONS = {
+  fire:      makeIcon('🔥','#ff2d55'),
+  medical:   makeIcon('🏥','#30d158'),
+  crime:     makeIcon('🚔','#0070ff'),
+  accident:  makeIcon('🚗','#ff9f0a'),
+  flood:     makeIcon('🌊','#00bcd4'),
+  Police:    makeIcon('🚔','#0070ff'),
+  Ambulance: makeIcon('🚑','#30d158'),
+  Fire:      makeIcon('🚒','#ff6b35'),
+  user:      makeIcon('📍','#00e5ff'),
+};
+
+// ─── USER / PIN MARKER ─────────────────────────────────────────────────────
+let userMarker = L.marker([-29.8587, 31.0218], { icon: ICONS.user, draggable: true })
+  .addTo(map)
+  .bindPopup('<div class="popup-title">📍 Your Location</div><div class="popup-row">Drag me to set coordinates</div>');
+
+userMarker.on('dragend', function(e) {
+  const { lat, lng } = e.target.getLatLng();
+  document.getElementById('lat').value = lat.toFixed(4);
+  document.getElementById('lng').value = lng.toFixed(4);
+});
+
+// Click map to set coords
+map.on('click', function(e) {
+  const lat = e.latlng.lat.toFixed(4), lng = e.latlng.lng.toFixed(4);
+  document.getElementById('lat').value = lat;
+  document.getElementById('lng').value = lng;
+  userMarker.setLatLng([lat, lng]);
+  showToast('📍 Location Pinned', `Lat: ${lat},  Lng: ${lng}`);
+});
+
+// ─── GPS ───────────────────────────────────────────────────────────────────
+function getMyLocation() {
+  if (!navigator.geolocation) { showToast('Error', 'Geolocation not supported.'); return; }
+  showToast('📡 Locating...', 'Getting your GPS position...');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    document.getElementById('lat').value = lat.toFixed(4);
+    document.getElementById('lng').value = lng.toFixed(4);
+    userMarker.setLatLng([lat, lng]);
+    map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
+    showToast('✅ GPS Acquired', `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+  }, () => showToast('❌ GPS Error', 'Allow location permission in your browser.'));
+}
+
+// ─── AI RISK PREVIEW ───────────────────────────────────────────────────────
+const BASE = { fire:85, medical:70, crime:75, accident:65, flood:80 };
+function previewRisk() {
+  const type = document.getElementById('inc-type').value;
+  const density = document.getElementById('density').value;
+  if (!type) { updateGauge('--', null); return; }
+  let score = BASE[type] || 50;
+  const h = new Date().getHours();
+  if (h >= 22 || h <= 5)    score = Math.min(100, Math.round(score * 1.2));
+  if (density === 'high')    score = Math.min(100, Math.round(score * 1.1));
+  if (density === 'low')     score = Math.round(score * 0.9);
+  const level = score >= 80 ? 'CRITICAL' : score >= 60 ? 'HIGH' : score >= 40 ? 'MODERATE' : 'LOW';
+  updateGauge(score, level);
+}
+
+function updateGauge(score, level) {
+  const C = { CRITICAL:'var(--danger)', HIGH:'var(--warn)', MODERATE:'#ffd60a', LOW:'var(--ok)' };
+  document.getElementById('gauge-bar').style.width      = (score !== '--' ? score : 0) + '%';
+  document.getElementById('gauge-bar').style.background = C[level] || '#333';
+  document.getElementById('gauge-val').textContent      = score;
+  document.getElementById('gauge-val').style.color      = C[level] || 'var(--dim)';
+  document.getElementById('gauge-level').textContent    = level || 'SELECT INCIDENT TYPE';
+  document.getElementById('gauge-level').style.color    = C[level] || 'var(--dim)';
+}
+
+// ─── AI PREDICT SERVER ─────────────────────────────────────────────────────
+async function getAIPrediction() {
+  const type = document.getElementById('inc-type').value;
+  if (!type) { showToast('⚠️', 'Select an incident type first.'); return; }
+  try {
+    const r = await fetch('/api/ai_predict', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type, density: document.getElementById('density').value })
+    });
+    const d = await r.json();
+    updateGauge(d.risk_score, d.risk_level);
+    showToast('🤖 AI Analysis', d.recommendation,
+      `Score: <strong style="color:${riskColor(d.risk_level)}">${d.risk_score}/100 · ${d.risk_level}</strong>`);
+  } catch { showToast('Error', 'AI service unreachable.'); }
+}
+
+// ─── SUBMIT INCIDENT ───────────────────────────────────────────────────────
+async function submitIncident() {
+  const type = document.getElementById('inc-type').value;
+  const desc = document.getElementById('inc-desc').value;
+  const lat  = parseFloat(document.getElementById('lat').value);
+  const lng  = parseFloat(document.getElementById('lng').value);
+  if (!type || !desc || isNaN(lat) || isNaN(lng)) {
+    showToast('⚠️ Incomplete', 'Fill all fields first.'); return;
+  }
+  try {
+    const r = await fetch('/api/report_incident', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type, description:desc, lat, lng, density: document.getElementById('density').value })
+    });
+    const d = await r.json();
+    if (!d.success) { showToast('Error', 'Failed to report.'); return; }
+
+    // Place real map marker
+    L.marker([lat, lng], { icon: ICONS[type] || ICONS.fire }).addTo(map)
+      .bindPopup(`
+        <div class="popup-title">${emoji(type)} ${type.toUpperCase()} — ${d.incident_id}</div>
+        <div class="popup-row">RISK <span style="color:${riskColor(d.risk_level)}">${d.risk_level} · ${d.risk_score}/100</span></div>
+        <div class="popup-row">ASSIGNED <span>${d.nearest_responders[0]?.name || 'N/A'}</span></div>
+        <div class="popup-row">ETA <span>${d.nearest_responders[0]?.eta_min || '?'} min</span></div>
+        <div style="margin-top:8px;font-size:11px;color:#c8d8e8">${desc}</div>
+      `).openPopup();
+
+    map.flyTo([lat, lng], 16, { animate:true, duration:1 });
+    showToast('🚨 Dispatched!', d.message,
+      `<strong style="color:${riskColor(d.risk_level)}">${d.risk_level} · ${d.risk_score}/100</strong>`);
+    document.getElementById('inc-type').value = '';
+    document.getElementById('inc-desc').value = '';
+    updateGauge('--', null);
+    loadIncidents();
+  } catch { showToast('Error', 'Server unreachable.'); }
+}
+
+// ─── LOAD RESPONDERS ───────────────────────────────────────────────────────
+async function loadResponders() {
+  try {
+    const r = await fetch('/api/responders');
+    const d = await r.json();
+    const EM = { Police:'🚔', Ambulance:'🚑', Fire:'🚒' };
+    d.responders.forEach(r => {
+      L.marker([r.lat, r.lng], { icon: ICONS[r.type] || ICONS.Police }).addTo(map)
+        .bindPopup(`
+          <div class="popup-title">${EM[r.type]} ${r.name}</div>
+          <div class="popup-row">UNIT <span>${r.id}</span></div>
+          <div class="popup-row">TYPE <span>${r.type}</span></div>
+          <div class="popup-row">STATUS <span style="color:${r.status==='available'?'var(--ok)':'var(--warn)'}">${r.status.toUpperCase()}</span></div>
+        `);
+    });
+    document.getElementById('responder-list').innerHTML = d.responders.map(r => `
+      <div class="responder-card">
+        <div class="resp-icon ${r.type}">${EM[r.type]||'🚓'}</div>
+        <div>
+          <div class="resp-name">${r.name}</div>
+          <div class="resp-type">${r.type} · ${r.id}</div>
+        </div>
+        <div class="resp-status status-${r.status}">${r.status.replace('_',' ').toUpperCase()}</div>
+      </div>`).join('');
+    document.getElementById('resp-count').textContent = d.responders.length;
+  } catch { document.getElementById('responder-list').innerHTML = '<p style="color:var(--dim)">Error.</p>'; }
+}
+
+// ─── LOAD INCIDENTS ────────────────────────────────────────────────────────
+async function loadIncidents() {
+  try {
+    const r = await fetch('/api/incidents');
+    const d = await r.json();
+    document.getElementById('active-count').textContent = d.incidents.length;
+    document.getElementById('inc-list').innerHTML = d.incidents.map(i => `
+      <div class="incident-card" onclick="map.flyTo([${i.lat},${i.lng}],17,{animate:true,duration:1})">
+        <div class="inc-header">
+          <div><div class="inc-id">${i.id}</div><div class="inc-type">${emoji(i.type)} ${i.type}</div></div>
+          <div class="risk-badge badge-${riskClass(i.risk_level)}">${i.risk_level}</div>
+        </div>
+        <div class="inc-desc">${i.description}</div>
+        <div class="inc-coords">📍 ${Number(i.lat).toFixed(4)}, ${Number(i.lng).toFixed(4)}</div>
+        ${i.assigned ? `<div class="inc-assigned">✅ ${i.assigned} dispatched</div>` : ''}
+      </div>`).join('') || '<p style="color:var(--dim);font-size:11px">No active incidents.</p>';
+  } catch {}
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────
+function riskClass(l) { return {CRITICAL:'critical',HIGH:'high',MODERATE:'moderate',LOW:'low'}[l]||'low'; }
+function riskColor(l) { return {CRITICAL:'var(--danger)',HIGH:'var(--warn)',MODERATE:'#ffd60a',LOW:'var(--ok)'}[l]||'var(--ok)'; }
+function emoji(t)     { return {fire:'🔥',medical:'🏥',crime:'🚔',accident:'🚗',flood:'🌊'}[t]||'🚨'; }
+
+function showToast(title, msg, extraHtml='') {
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-msg').textContent   = msg;
+  const ex = document.getElementById('toast-extra');
+  if (extraHtml) { ex.innerHTML = extraHtml; ex.style.display='block'; }
+  else           { ex.style.display='none'; }
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+loadResponders();
+loadIncidents();
+setInterval(loadIncidents, 10000);
+</script>
+</body>
+</html>
