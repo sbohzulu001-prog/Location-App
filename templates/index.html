@@ -240,7 +240,7 @@
     <div class="logo-icon">🚨</div>
     <div>
       <div class="logo-text">Emergency Response</div>
-      <div class="logo-sub">Location Command Center · DUT Group 23 &amp; 41</div>
+      <div class="logo-sub">Location Command Center</div>
     </div>
   </div>
   <div class="header-center">
@@ -284,8 +284,8 @@
       <div class="field">
         <label>COORDINATES — click map to pin location</label>
         <div class="coord-row">
-          <input type="number" id="lat" placeholder="Latitude"  step="0.0001" value="-29.8587"/>
-          <input type="number" id="lng" placeholder="Longitude" step="0.0001" value="31.0218"/>
+          <input type="number" id="lat" placeholder="Latitude"  step="0.0001" value=""/>
+          <input type="number" id="lng" placeholder="Longitude" step="0.0001" value=""/>
         </div>
         <button class="btn-locate" onclick="getMyLocation()">📍 Use My GPS Location</button>
       </div>
@@ -335,8 +335,9 @@
 </div>
 
 <script>
+{% raw %}
 // ─── MAP SETUP ─────────────────────────────────────────────────────────────
-const map = L.map('map', { zoomControl: true }).setView([-29.8587, 31.0218], 14);
+const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
 
 const tileLayers = {
   streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -384,7 +385,7 @@ const ICONS = {
 };
 
 // ─── USER / PIN MARKER ─────────────────────────────────────────────────────
-let userMarker = L.marker([-29.8587, 31.0218], { icon: ICONS.user, draggable: true })
+let userMarker = L.marker([0, 0], { icon: ICONS.user, draggable: true })
   .addTo(map)
   .bindPopup('<div class="popup-title">📍 Your Location</div><div class="popup-row">Drag me to set coordinates</div>');
 
@@ -562,6 +563,7 @@ function showToast(title, msg, extraHtml='') {
 loadResponders();
 loadIncidents();
 setInterval(loadIncidents, 10000);
+{% endraw %}
 </script>
 </body>
 </html>
